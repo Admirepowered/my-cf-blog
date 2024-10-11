@@ -4,12 +4,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // 检查 Cookie 中的密钥
-    const cookies = getCookies(request.headers.get('Cookie'));
-    const storedAdminKey = cookies['admin_key'];
-
     // 管理员页面逻辑
     if (url.pathname.startsWith('/admin')) {
+      const cookies = getCookies(request.headers.get('Cookie'));
+      const storedAdminKey = cookies['admin_key'];
+
       if (request.method === 'GET') {
         if (storedAdminKey === ADMIN_PASSWORD) {
           // 已登录，显示发布文章页面
@@ -28,6 +27,11 @@ export default {
       return handleCommentSubmission(request, articleId, env);
     }
 
+    // 删除评论
+    if (url.pathname.startsWith('/delete-comment') && request.method === 'POST') {
+      return await handleDeleteComment(request, env);
+    }
+
     // 获取文章列表 (主页)
     if (url.pathname === '/' && request.method === 'GET') {
       await initializeIndex(env); // 初始化 INDEX
@@ -43,8 +47,9 @@ export default {
       const articleId = url.pathname.split('/').pop().replace('.html', '');
       const article = await getArticleById(articleId, env);
       const comments = await getArticleComments(articleId, env); // 获取文章的评论
+      const admin = isAdmin(request);
       if (article && !article.deleted) { // 检查文章是否已标记为删除
-        return new Response(renderArticlePage(article.title, article.content, comments, articleId), {
+        return new Response(renderArticlePage(article.title, article.content, comments, articleId, admin), {
           headers: { 'Content-Type': 'text/html; charset=UTF-8' },
         });
       } else {
@@ -56,6 +61,19 @@ export default {
     return new Response('未找到页面', { status: 404, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
   },
 };
+
+async function handleDeleteComment(request, env) {
+  const url = new URL(request.url);
+  const articleId = url.searchParams.get('articleId');
+  const commentId = url.searchParams.get('commentId');
+  
+  if (await isAdmin(request)) {
+    await env.BLOG.delete(`comments_${articleId}_${commentId}`); // 删除评论
+    return Response.redirect(`/${articleId}.html`, 302); // 重定向到文章页面
+  } else {
+    return new Response("Unauthorized", { status: 403 });
+  }
+}
 
 // 初始化 INDEX
 async function initializeIndex(env) {
@@ -256,8 +274,18 @@ async function handleCommentSubmission(request, articleId, env) {
 }
 
 // 渲染文章页面
-function renderArticlePage(title, content, comments, articleId) {
-  const commentsHtml = comments.map(comment => `<p>${comment.content}</p>`).join('');
+
+// 渲染文章页面
+function renderArticlePage(title, content, comments, articleId, isAdmin) {
+  const commentsHtml = comments.length > 0 
+    ? comments.map(comment => `
+        <div id="comment">${comment.content}${isAdmin ? `<form action="/delete-comment?articleId=${articleId}&commentId=${comment.id}" method="POST">
+                        <button type="submit">删除评论</button>
+                      </form>` : ''}
+        </div>
+      `).join('') 
+    : '<p>还没有评论。</p>';
+
   return `
     <html>
       <head>
@@ -268,21 +296,43 @@ function renderArticlePage(title, content, comments, articleId) {
           document.addEventListener('DOMContentLoaded', function() {
             const contentEl = document.getElementById('markdown-content');
             contentEl.innerHTML = marked(contentEl.innerHTML);
+
+            // 渲染评论
+            const commentsEl = document.getElementById('comments');
+            const commentElements = commentsEl.children;
+            for (let i = 0; i < commentElements.length; i++) {
+              commentElements[i].innerHTML = marked(commentElements[i].innerHTML);
+            }
           });
         </script>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .comment { border-top: 1px solid #ccc; padding: 10px 0; }
+          .comment p { margin: 0; }
+        </style>
       </head>
       <body>
         <h1>${title}</h1>
         <div id="markdown-content">${content}</div>
+        
         <h2>评论区</h2>
         <form action="/comments?articleId=${articleId}" method="POST">
           <textarea name="content" placeholder="发表评论" required></textarea><br>
           <button type="submit">提交评论</button>
         </form>
-        <div>${commentsHtml}</div>
+        
+        <div id="comments">
+          ${commentsHtml}
+        </div>
       </body>
     </html>
   `;
+}
+
+
+function isAdmin(request) {
+  const cookieHeader = request.headers.get('Cookie');
+  return cookieHeader && cookieHeader.includes('admin_key='+ADMIN_PASSWORD);
 }
 
 // 渲染主页
