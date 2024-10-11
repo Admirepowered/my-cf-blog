@@ -22,6 +22,121 @@ export default {
 		return a;
     }
 	
+	if (pathname.startsWith("/imgupload")){
+        var html=`<!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Image Upload</title>
+        </head>
+        <body>
+          <h1>Image Upload</h1>
+          <form id="uploadForm">
+            <input type="file" id="imageInput" accept="image/*" />
+            <button type="button" onclick="uploadImage()">Upload</button>
+          </form>
+          <div id="preview"></div>
+        
+          <script>
+            function uploadImage() {
+              const input = document.getElementById('imageInput');
+              const preview = document.getElementById('preview');
+        
+              // 检查用户是否选择了文件
+              if (input.files.length > 0) {
+                const file = input.files[0];
+                const reader = new FileReader();
+        
+                // 读取文件并在加载完成后执行回调
+                reader.onloadend = function () {
+                  const base64String = reader.result;
+        
+                  // 在页面上显示Base64编码的图像
+                  preview.innerHTML = "<img src=\\"" + base64String + "\\" alt=\\"Uploaded Image\\" style=\\"max-width: 100%;\\" />";
+        
+                  // 将Base64字符串发送到后端进行存储
+                  // 此处你需要使用异步请求（例如 fetch）将数据发送到后端
+                  fetch('https://blog.admirecn.de/imgupload', {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'stream',
+                    },
+                   body: base64String ,
+                   })
+                     .then(response => response.json())
+                     .then(data => alert(data.message))
+                     .catch(error => console.error('Error:', error));
+                };
+        
+                // 读取文件为Base64编码
+                reader.readAsDataURL(file);
+              } else {
+                alert('Please select an image file.');
+              }
+            }
+          </script>
+        </body>
+        </html>
+        `;
+        var method = request.method;
+        if(method=="POST"){
+            const timestamp = Date.now();
+            const requestBody = await request.text();
+            await env.BLOG.put(timestamp,requestBody);
+            var message=timestamp;
+            //const message=requestBody;
+            return new Response(JSON.stringify({message}), {
+                headers: { "Content-Type": "application/json" },
+              });
+
+        }
+        return new Response(html, {
+            headers: { "Content-Type": "html",
+            "access-control-allow-origin":"*",
+                  "access-control-allow-headers":"*",
+                  "cache-control":"no-cache",
+                  "cross-origin-resource-policy":"cross-origin",
+                  "access-control-allow-credentials":"true"
+        
+            }
+        }
+        );
+
+    }
+    if (pathname.startsWith("/img")) {
+        var kk=pathname;
+        var qury = kk.split("/")[2];
+		let r=await env.BLOG.get(qury)
+        //r=decodeURIComponent(r.substring(30));
+        r=decodeURIComponent(r);
+        var ind=r.indexOf(',');
+        r=r.substring(ind+1);
+
+        const decodedData = atob(r);
+
+        // 构建 Uint8Array 来存储二进制数据
+        const uint8Array = new Uint8Array(decodedData.length);
+        for (let i = 0; i < decodedData.length; i++) {
+            uint8Array[i] = decodedData.charCodeAt(i);
+        }
+
+        // 构建 Blob 对象
+        const blob = new Blob([uint8Array], { type: 'image/png' });
+
+        // 构建响应
+        const response = new Response(blob, {
+            headers: {
+            'Content-Type': 'image/png',
+            },
+        });
+
+        return response;
+
+    
+    }
+	
+	
     if (url.pathname.startsWith('/admin')) {
       const cookies = getCookies(request.headers.get('Cookie'));
       const storedAdminKey = cookies['admin_key'];
