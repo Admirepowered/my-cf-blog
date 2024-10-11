@@ -5,6 +5,23 @@ export default {
     const url = new URL(request.url);
     
     // 管理员页面逻辑
+	const { pathname } = new URL(request.url);
+	if (pathname.startsWith("/cdn")) {
+		var rqurl="https://raw.githubusercontent.com/Admirepowered"+pathname
+		var a =fetch(rqurl);
+		return a;
+	}
+	if (pathname.startsWith("/file")) {
+       	var rqurl="https://telegra.ph"+pathname
+		var a =fetch(rqurl);
+		return a;
+    }
+	if (pathname.startsWith("/proxy")) {
+       	var rqurl=pathname.substr(7)
+		var a =fetch(rqurl);
+		return a;
+    }
+	
     if (url.pathname.startsWith('/admin')) {
       const cookies = getCookies(request.headers.get('Cookie'));
       const storedAdminKey = cookies['admin_key'];
@@ -291,17 +308,17 @@ function renderArticlePage(title, content, comments, articleId, isAdmin) {
       <head>
         <meta charset="UTF-8">
         <title>${title}</title>
-        <script src="https://cdn.bootcdn.net/ajax/libs/marked/2.0.3/marked.js"></script>
+        <script src="https://cdn.staticfile.net/marked/11.1.1/marked.min.js"></script>
         <script>
           document.addEventListener('DOMContentLoaded', function() {
             const contentEl = document.getElementById('markdown-content');
-            contentEl.innerHTML = marked(contentEl.innerHTML);
+            contentEl.innerHTML = marked.parse(contentEl.innerHTML);
 
             // 渲染评论
             const commentsEl = document.getElementById('comments');
             const commentElements = commentsEl.children;
             for (let i = 0; i < commentElements.length; i++) {
-              commentElements[i].innerHTML = marked(commentElements[i].innerHTML);
+              commentElements[i].innerHTML = marked.parse(commentElements[i].innerHTML);
             }
           });
         </script>
