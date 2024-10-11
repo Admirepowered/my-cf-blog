@@ -100,6 +100,22 @@ async function initializeIndex(env) {
   }
 }
 
+async function handleEditArticle(request, env,formData) {
+  //const formData = await request.formData();
+  const articleId = formData.get('articleId');
+  const newTitle = formData.get('title');
+  const newContent = formData.get('content');
+  const article = await env.BLOG.get(`article_${articleId - 1}`);
+  
+  if (article) {
+    const updatedArticle = JSON.parse(article);
+    updatedArticle.title = newTitle;
+    updatedArticle.content = newContent;
+    await env.BLOG.put(`article_${articleId - 1}`, JSON.stringify(updatedArticle)); // 更新文章
+  }
+
+  return new Response('文章已修改', { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+}
 // 处理管理员路由，添加发布文章和删除文章逻辑
 async function handleAdminRoutes(request, env, storedAdminKey) {
   const formData = await request.formData();
@@ -124,6 +140,27 @@ async function handleAdminRoutes(request, env, storedAdminKey) {
   if (formData.has('delete')) {
     const articleId = formData.get('articleId');
     return await deleteArticle(articleId, env);
+  }
+  if (formData.has('edit')) {
+    const articleId = formData.get('articleId');
+    const article = await getArticleById(articleId, env);
+  return new Response(`
+      <html>
+        <head><meta charset="UTF-8"><title>编辑文章</title></head>
+        <body>
+          <h1>编辑文章</h1>
+          <form action="/admin" method="POST">
+            <input type="hidden" name="articleId" value="${articleId}">
+            <input type="text" name="title" value="${article.title}" required><br>
+            <textarea name="content" required>${article.content}</textarea><br>
+            <button type="submit" name="save">保存修改</button>
+          </form>
+        </body>
+      </html>
+    `, { headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+  }
+  if (formData.has('save')) {
+    return await handleEditArticle(request, env,formData);
   }
 
   // 发布文章
@@ -185,6 +222,7 @@ async function renderAdminPostPage(env) {
       <form action="/admin" method="POST" style="display:inline;">
         <input type="hidden" name="articleId" value="${article.id}">
         <button type="submit" name="delete">删除</button>
+		<button type="submit" name="edit">编辑</button> 
       </form>
     </li>
   `).join('');
@@ -292,7 +330,6 @@ async function handleCommentSubmission(request, articleId, env) {
 
 // 渲染文章页面
 
-// 渲染文章页面
 function renderArticlePage(title, content, comments, articleId, isAdmin) {
   const commentsHtml = comments.length > 0 
     ? comments.map(comment => `
