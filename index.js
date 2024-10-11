@@ -128,10 +128,11 @@ async function handleAdminRoutes(request, env, storedAdminKey) {
 
   if (!storedAdminKey) {
     // 密码正确，设置 Cookie
-    return new Response(renderAdminPostPage(env), {
+    return new Response('登录成功', { status: 302,
       headers: {
         'Set-Cookie': `admin_key=${ADMIN_PASSWORD}; Path=/; HttpOnly; SameSite=Strict`,
         'Content-Type': 'text/html; charset=UTF-8',
+		'Location': '/admin',
       },
     });
   }
@@ -264,7 +265,11 @@ async function getAllArticles(env) {
   for (let i = 0; i < index; i++) {
     const article = await env.BLOG.get(`article_${i}`);
     if (article) {
-      articles.push(JSON.parse(article));
+		const parsedArticle = JSON.parse(article);
+		if (!parsedArticle.deleted) { // 只获取未删除的文章
+         articles.push(JSON.parse(article));
+		}
+     
     }
   }
   return articles;
@@ -368,7 +373,9 @@ function renderArticlePage(title, content, comments, articleId, isAdmin) {
       <body>
         <h1>${title}</h1>
         <div id="markdown-content">${content}</div>
-        
+		
+        <p><a href="/">返回首页</a></p>
+		
         <h2>评论区</h2>
         <form action="/comments?articleId=${articleId}" method="POST">
           <textarea name="content" placeholder="发表评论" required></textarea><br>
